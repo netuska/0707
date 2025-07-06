@@ -1,0 +1,6 @@
+opencv-python-headless
+pyzmq
+torch
+numpy
+ultralytics
+seaborn

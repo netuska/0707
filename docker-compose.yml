@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  dispatcher:
+    build: .
+    container_name: dispatcher
+    network_mode: host
+    command: python dispatcher.py
+
+  detector1:
+    build: .
+    container_name: detector1
+    network_mode: host
+    environment:
+      - NAME=Detector-A
+    command: python detector.py
+    depends_on:
+      - dispatcher
+
+  detector2:
+    build: .
+    container_name: detector2
+    network_mode: host
+    environment:
+      - NAME=Detector-B
+    command: python detector.py
+    depends_on:
+      - dispatcher
