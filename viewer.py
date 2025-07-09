@@ -1,29 +1,15 @@
-cv2.namedWindow("YOLOv5 Live Stream", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("YOLOv5 Live Stream", 960, 540)
+msg = socket.recv()
+data = msgpack.unpackb(msg, raw=False)
 
-while True:
-    try:
-        # Receive and decode frame
-        frame_bytes = socket.recv()
-        jpg_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-        frame = cv2.imdecode(jpg_array, cv2.IMREAD_COLOR)
+frame_id = data["frame_id"]
+jpg_bytes = data["image"]
+jpg_array = np.frombuffer(jpg_bytes, dtype=np.uint8)
 
-        if frame is None:
-            print("⚠️ Failed to decode frame.")
-            continue
+frame = cv2.imdecode(jpg_array, cv2.IMREAD_COLOR)
 
-        # Show live video
-        cv2.imshow("YOLOv5 Live Stream", frame)
-
-        # Press 'q' to quit
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    except KeyboardInterrupt:
-        break
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        continue
-
-# Cleanup
-cv2.destroyAllWindows()
+_, jpeg = cv2.imencode('.jpg', annotated_frame)
+out_msg = msgpack.packb({
+    "frame_id": frame_id,
+    "image": jpeg.tobytes()
+}, use_bin_type=True)
+sender.send(out_msg)
