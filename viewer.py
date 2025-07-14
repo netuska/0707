@@ -49,3 +49,25 @@ while True:
         break
 
 cv2.destroyAllWindows()
+
+
+
+def load_agents():
+    try:
+        with open(AGENTS_FILE, "r") as f:
+            data = json.load(f)
+            return [(d["ip"], d["port"]) for d in data]
+    except Exception as e:
+        print(f"[ERROR] Could not read {AGENTS_FILE}: {e}")
+        return []
+
+def watch_for_new_agents():
+    while True:
+        agents = load_agents()
+        for ip, port in agents:
+            if (ip, port) not in started_detectors:
+                print(f"[INFO] Starting thread for {ip}:{port}")
+                threading.Thread(target=receive_from_vm, args=(ip, port), daemon=True).start()
+                started_detectors.add((ip, port))
+        time.sleep(3)
+
