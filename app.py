@@ -37,3 +37,18 @@ def predict_next_usage(metric_series, interval=20, steps_ahead=1):
     model = LinearRegression().fit(timestamps, values)
     future_time = np.array([[timestamps[-1][0] + interval * steps_ahead]])
     return model.predict(future_time)[0]
+
+
+
+
+
+cpu_window = [180, 200, 220, 250, 270, 290]
+cpu_limit_per_instance = 100
+
+predicted_cpu = predict_next_usage(cpu_window)
+required_instances = math.ceil(predicted_cpu / cpu_limit_per_instance)
+
+# Only trigger if predictive result is higher than current replicas
+if required_instances > current_replicas:
+    scale_service(required_instances)  # your existing scale function
+    print(f"[Predictive] Scaling to {required_instances} based on prediction: {predicted_cpu} mCores")
