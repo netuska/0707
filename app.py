@@ -1,3 +1,37 @@
+import json
+import csv
+from datetime import datetime
+
+# Step 1: Load JSON from file
+with open("input.json", "r") as f:
+    data = json.load(f)
+
+# Step 2: Prepare CSV rows
+rows = []
+for result in data["data"]["result"]:
+    for timestamp, value in result["values"]:
+        time_str = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
+        rows.append({
+            "timestamp": time_str,
+            "cpu": value
+        })
+
+# Step 3: Write to CSV
+with open("output.csv", "w", newline="") as csvfile:
+    fieldnames = ["timestamp", "cpu"]
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+
+print("CSV file has been saved as 'output.csv'")
+
+
+
+
+
+
+
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
