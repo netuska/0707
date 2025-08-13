@@ -46,11 +46,8 @@ class DQNAgent:
         return torch.argmax(q_values[0]).item()
 
     def replay(self, batch_size=32):
-        # Autosave training log after each replay call
-        self.save_training_log()
-        if len(self.memory) < batch_size:
-            return
-        minibatch = random.sample(self.memory, batch_size)
+        # Allow training with whatever is available in memory
+        minibatch = random.sample(self.memory, min(len(self.memory), batch_size))
         for state, action, reward, next_state in minibatch:
             state_tensor = torch.FloatTensor(state).unsqueeze(0)
             next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
@@ -72,6 +69,8 @@ class DQNAgent:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+        self.save_training_log()
+
     def save_training_log(self, filename='training_log.csv'):
         df = pd.DataFrame(self.training_log)
         df.to_csv(filename, index=False)
@@ -82,6 +81,7 @@ class DQNAgent:
 
     def save(self, path):
         torch.save(self.model.state_dict(), path)
+
 
 
 
