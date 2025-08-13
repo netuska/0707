@@ -46,6 +46,8 @@ class DQNAgent:
         return torch.argmax(q_values[0]).item()
 
     def replay(self, batch_size=32):
+        # Autosave training log after each replay call
+        self.save_training_log()
         if len(self.memory) < batch_size:
             return
         minibatch = random.sample(self.memory, batch_size)
@@ -80,9 +82,6 @@ class DQNAgent:
 
     def save(self, path):
         torch.save(self.model.state_dict(), path)
-
-
-
 
 
 
