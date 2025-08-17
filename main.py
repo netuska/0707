@@ -1,3 +1,47 @@
+Initialize Q-network with random weights
+Initialize empty replay memory
+
+for each episode do
+    state ← env.reset()
+    done ← False
+
+    while not done do
+        if random() ≤ ε then
+            action ← random_action()
+        else
+            action ← argmax(Q(state))
+        end if
+
+        next_state, reward, done ← env.step(action)
+        store (state, action, reward, next_state) in memory
+        state ← next_state
+
+        if memory has at least 1 transition then
+            minibatch ← random_sample(memory, batch_size)
+            for each (s, a, r, s') in minibatch do
+                target ← r + γ * max(Q(s'))
+                Q(s)[a] ← target
+                update_network(Q, s, target)
+            end for
+
+            if ε > ε_min then
+                ε ← ε × ε_decay
+            end if
+        end if
+    end while
+
+    save_training_log()
+end for
+
+
+
+
+
+
+
+
+
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
