@@ -89,35 +89,46 @@ class DQNAgent:
             q_values = self.model(state_tensor)
         return torch.argmax(q_values[0]).item()
 
-    def replay(self, batch_size=32):
-        if len(self.memory) == 0:
-            return
-        minibatch = random.sample(self.memory, min(len(self.memory), batch_size))
-        for state, action, reward, next_state in minibatch:
-            state_tensor = torch.FloatTensor(state).unsqueeze(0)
-            next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
+    def replay(self, batch_size=8):
+    if len(self.memory) < batch_size:
+        return
 
-            target = reward + self.gamma * torch.max(self.model(next_state_tensor)).item()
-            target_f = self.model(state_tensor).clone()
-            target_f[0][action] = target
+    minibatch = random.sample(self.memory, batch_size)
+    for state, action, reward, next_state in minibatch:
+        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
 
-            self.optimizer.zero_grad()
-            output = self.model(state_tensor)
-            loss = self.loss_fn(output, target_f)
-            loss.backward()
-            self.optimizer.step()
+        # Predict current Q-values from model
+        predicted_q = self.model(state_tensor)
 
-            self.training_log['loss'].append(loss.item())
-            self.training_log['reward'].append(reward)
-            self.training_log['epsilon'].append(self.epsilon)
+        # Compute target Q-value using Bellman equation
+        with torch.no_grad():
+            next_q = self.model(next_state_tensor)
+            max_next_q = torch.max(next_q)
+            target_q = reward + self.gamma * max_next_q
 
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # Predicted Q-value for the action taken
+        predicted_q_value = predicted_q[0][action]
 
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # Compute loss only on that action's Q-value
+        loss = self.loss_fn(predicted_q_value, target_q)
 
-        self.save_training_log()
+        # Optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Logging
+        self.training_log['loss'].append(loss.item())
+        self.training_log['reward'].append(reward)
+        self.training_log['epsilon'].append(self.epsilon)
+
+    # Decay epsilon
+    if self.epsilon > self.epsilon_min:
+        self.epsilon *= self.epsilon_decay
+
+    self.save_training_log()
+
 
     def save_training_log(self, filename='training_log.csv'):
         df = pd.DataFrame(self.training_log)
