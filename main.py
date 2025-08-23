@@ -1,3 +1,110 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import random
+import numpy as np
+from collections import deque
+import pandas as pd
+
+class DQN(nn.Module):
+    def __init__(self, state_size, action_size):
+        super(DQN, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(state_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, action_size)
+        )
+
+    def forward(self, state):
+        return self.model(state)
+
+class DQNAgent:
+    def __init__(self, state_size, action_size, gamma=0.95, lr=0.001, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = deque(maxlen=2000)
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.model = DQN(state_size, action_size)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        self.loss_fn = nn.MSELoss()
+        self.training_log = {'loss': [], 'reward': [], 'epsilon': []}
+
+    def remember(self, state, action, reward, next_state):
+        self.memory.append((state, action, reward, next_state))
+
+    def act(self, state):
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)
+        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.model(state_tensor)
+        return torch.argmax(q_values[0]).item()
+
+    def replay(self, batch_size=32):
+        if len(self.memory) < batch_size:
+            return
+
+        minibatch = random.sample(self.memory, batch_size)
+        for state, action, reward, next_state in minibatch:
+            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
+
+            # Predict current Q-values from model
+            predicted_q = self.model(state_tensor)
+
+            # Compute target Q-value using Bellman equation
+            with torch.no_grad():
+                next_q = self.model(next_state_tensor)
+                max_next_q = torch.max(next_q)
+                target_q = reward + self.gamma * max_next_q
+
+            # Predicted Q-value for the action taken
+            predicted_q_value = predicted_q[0][action]
+
+            # Compute loss only on that action's Q-value
+            loss = self.loss_fn(predicted_q_value, target_q)
+
+            # Optimize the model
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            # Logging
+            self.training_log['loss'].append(loss.item())
+            self.training_log['reward'].append(reward)
+            self.training_log['epsilon'].append(self.epsilon)
+
+        # Decay epsilon after training
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+        self.save_training_log()
+
+    def save_training_log(self, filename='training_log.csv'):
+        df = pd.DataFrame(self.training_log)
+        df.to_csv(filename, index=False)
+
+    def load(self, path):
+        self.model.load_state_dict(torch.load(path))
+        self.model.eval()
+
+    def save(self, path):
+        torch.save(self.model.state_dict(), path)
+
+
+
+
+
+
+
+
+
+
 Initialize Q-network with random weights
 Initialize empty replay memory
 
