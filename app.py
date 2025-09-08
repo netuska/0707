@@ -1,3 +1,102 @@
+app.py
+import os
+import subprocess
+from flask import Flask, request, render_template_string
+
+UPLOAD_FOLDER = "/uploads"
+RTSP_URL = "rtsp://rtsp-server:8554/webcam"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app = Flask(__name__)
+ffmpeg_process = None
+
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head><title>Video Uploader</title></head>
+<body>
+  <h2>Upload a video to stream via RTSP</h2>
+  <form method="post" enctype="multipart/form-data">
+    <input type="file" name="video" accept="video/*">
+    <input type="submit" value="Upload & Stream">
+  </form>
+</body>
+</html>
+"""
+
+@app.route("/", methods=["GET", "POST"])
+def upload_video():
+    global ffmpeg_process
+    if request.method == "POST":
+        if "video" not in request.files:
+            return "No file uploaded", 400
+
+        video = request.files["video"]
+        if video.filename == "":
+            return "No selected file", 400
+
+        filepath = os.path.join(UPLOAD_FOLDER, video.filename)
+        video.save(filepath)
+
+        # Stop previous ffmpeg if running
+        if ffmpeg_process and ffmpeg_process.poll() is None:
+            ffmpeg_process.terminate()
+
+        # Launch ffmpeg to stream uploaded video
+        cmd = [
+            "ffmpeg", "-re", "-stream_loop", "-1",
+            "-i", filepath,
+            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+            "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
+            "-rtsp_transport", "tcp", "-an",
+            "-f", "rtsp", RTSP_URL
+        ]
+        ffmpeg_process = subprocess.Popen(cmd)
+        return f"✅ Streaming {video.filename} to {RTSP_URL}"
+
+    return render_template_string(HTML_PAGE)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+
+
+
+
+
+
+Dockerfile: 
+FROM python:3.9-slim
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
+COPY app.py .
+RUN pip install flask
+
+EXPOSE 8080
+VOLUME ["/uploads"]
+
+CMD ["python", "app.py"]
+
+
+extend docker-compose
+
+  web-uploader:
+    build: ./web-uploader
+    container_name: web-uploader
+    volumes:
+      - ./uploads:/uploads
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rtsp-server
+
+
+
+
+
+
+
 import json
 import csv
 from datetime import datetime
