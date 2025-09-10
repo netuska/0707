@@ -1,0 +1,135 @@
+Got it ✅ You don’t want to manually put a file in `media/` or rename it — you want a **web UI where you upload a video**, and the system automatically streams it into the RTSP server.
+
+Here’s the architecture I suggest:
+
+---
+
+## 🔹 New Service: `uploader`
+
+* Runs a **Flask web server** with an upload form.
+* User uploads a video (MP4, AVI, MKV…).
+* The file is saved inside a shared `uploads/` volume.
+* `uploader` then spawns an **FFmpeg process** that pushes this uploaded video to the RTSP server.
+* If another video is uploaded, the old stream stops and the new one starts.
+
+---
+
+### Example `docker-compose.yml` addition
+
+```yaml
+services:
+  uploader:
+    build: ./uploader
+    container_name: uploader
+    network_mode: host
+    volumes:
+      - ./uploads:/uploads
+    environment:
+      - RTSP_URL=rtsp://localhost:8554/webcam
+    restart: unless-stopped
+```
+
+---
+
+### `uploader/Dockerfile`
+
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY app.py .
+
+CMD ["python", "app.py"]
+```
+
+---
+
+### `uploader/requirements.txt`
+
+```
+flask
+```
+
+---
+
+### `uploader/app.py`
+
+```python
+import os
+import subprocess
+from flask import Flask, request, render_template_string
+
+UPLOAD_FOLDER = "/uploads"
+RTSP_URL = os.environ.get("RTSP_URL", "rtsp://localhost:8554/webcam")
+
+app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+# Keep track of the running ffmpeg process
+ffmpeg_process = None
+
+@app.route("/", methods=["GET", "POST"])
+def upload_file():
+    global ffmpeg_process
+
+    if request.method == "POST":
+        if "file" not in request.files:
+            return "No file part", 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return "No selected file", 400
+
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+        file.save(filepath)
+
+        # Stop existing ffmpeg process if running
+        if ffmpeg_process and ffmpeg_process.poll() is None:
+            ffmpeg_process.terminate()
+
+        # Start ffmpeg to stream the new video
+        ffmpeg_process = subprocess.Popen([
+            "ffmpeg",
+            "-re", "-stream_loop", "-1",
+            "-i", filepath,
+            "-vcodec", "libx264", "-acodec", "aac",
+            "-f", "rtsp", RTSP_URL
+        ])
+
+        return f"✅ Streaming {file.filename} to {RTSP_URL}"
+
+    return render_template_string("""
+    <!doctype html>
+    <title>Upload video</title>
+    <h1>Upload a video to stream</h1>
+    <form method=post enctype=multipart/form-data>
+      <input type=file name=file>
+      <input type=submit value=Upload>
+    </form>
+    """)
+```
+
+---
+
+## 🔹 How it works
+
+1. Run everything:
+
+   ```bash
+   docker compose up -d --build
+   ```
+2. Open your browser → [http://localhost:5000](http://localhost:5000)
+3. Upload a video file.
+4. It immediately starts streaming that file into the RTSP server (`rtsp://localhost:8554/webcam`).
+5. If you upload another one, it replaces the stream.
+
+---
+
+👉 Do you want me to **regenerate your full ZIP** with this `uploader` service included and wired into your current setup (so you don’t need the `publisher` service anymore)?
