@@ -1,3 +1,22 @@
+
+uploader:
+  build: ./uploader
+  container_name: uploader
+  ports:
+    - "5000:5000"
+  volumes:
+    - ./uploads:/uploads
+  environment:
+    - RTSP_URL=rtsp://rtsp-server:8554/webcam
+  restart: unless-stopped
+
+
+
+
+
+
+
+
 Got it ✅ You don’t want to manually put a file in `media/` or rename it — you want a **web UI where you upload a video**, and the system automatically streams it into the RTSP server.
 
 Here’s the architecture I suggest:
